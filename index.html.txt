@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kios Kuis & Dashboard Guru</title>
+  <style>
+    * { box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+    body { background-color: #f4f7f6; margin: 0; padding: 20px; display: flex; justify-content: center; }
+    .container { background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); width: 100%; max-width: 650px; }
+    h2 { color: #2c3e50; text-align: center; margin-top: 0; }
+    .screen { display: none; }
+    .active { display: block; }
+    
+    label { display: block; margin-top: 15px; font-weight: bold; color: #34495e; }
+    input[type="text"], input[type="date"], input[type="password"] {
+      width: 100%; padding: 10px; margin-top: 5px; border: 1px solid #ccc; border-radius: 6px; font-size: 15px;
+    }
+    
+    .btn {
+      display: inline-block; width: 100%; padding: 12px; background-color: #3498db; color: white; border: none;
+      border-radius: 6px; font-size: 16px; font-weight: bold; cursor: pointer; margin-top: 20px; text-align: center;
+    }
+    .btn:hover { background-color: #2980b9; }
+    .btn-secondary { background-color: #2ecc71; }
+    .btn-secondary:hover { background-color: #27ae60; }
+    .btn-danger { background-color: #e74c3c; margin-top: 10px; }
+    .btn-danger:hover { background-color: #c0392b; }
+    
+    .option-btn {
+      display: block; width: 100%; padding: 12px; background-color: #ecf0f1; border: 1px solid #bdc3c7;
+      border-radius: 6px; margin: 8px 0; text-align: left; cursor: pointer; font-size: 15px;
+    }
+    .option-btn:hover { background-color: #d5dbdb; }
+    
+    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+    th, td { border: 1px solid #ddd; padding: 10px; text-align: center; font-size: 14px; }
+    th { background-color: #34495e; color: white; }
+    
+    .top-nav { display: flex; justify-content: flex-end; margin-bottom: 15px; }
+    .link-btn { background: none; border: none; color: #3498db; cursor: pointer; text-decoration: underline; font-weight: bold; }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  
+  <div class="top-nav">
+    <button class="link-btn" onclick="openTeacherAuth()">Akses Guru / Rekap Nilai</button>
+  </div>
+
+  <!-- 1. FORM IDENTITAS SISWA -->
+  <div id="student-screen" class="screen active">
+    <h2>Form Identitas Siswa</h2>
+    <form id="student-form" onsubmit="startQuiz(event)">
+      <label for="nama">Nama Lengkap Siswa:</label>
+      <input type="text" id="nama" placeholder="Masukkan nama lengkap" required>
+      
+      <label for="tanggal">Tanggal Pengerjaan:</label>
+      <input type="date" id="tanggal" required>
+      
+      <button type="submit" class="btn">Mulai Kuis</button>
+    </form>
+  </div>
+
+  <!-- 2. LAYAR KUIS -->
+  <div id="quiz-screen" class="screen">
+    <h3 id="question-text">Pertanyaan akan muncul di sini</h3>
+    <div id="options-container"></div>
+  </div>
+
+  <!-- 3. LAYAR HASIL SISWA -->
+  <div id="result-screen" class="screen">
+    <h2>Kuis Selesai!</h2>
+    <p>Terima kasih telah mengerjakan kuis.</p>
+    <div style="background: #eef9f1; padding: 15px; border-radius: 8px; text-align: center; margin: 20px 0;">
+      <h3 style="margin: 0; color: #27ae60;">Nilai Anda: <span id="user-score">0</span> / 100</h3>
+    </div>
+    <button class="btn" onclick="resetToHome()">Kembali ke Halaman Depan</button>
+  </div>
+
+  <!-- 4. DASHBOARD REKAP NILAI GURU -->
+  <div id="teacher-screen" class="screen">
+    <h2>Dashboard Rekap Nilai Guru</h2>
+    <button class="btn btn-secondary" onclick="exportToCSV()">Download Rekap (CSV)</button>
+    
+    <table id="score-table">
+      <thead>
+        <tr>
+          <th>No</th>
+          <th>Nama Siswa</th>
+          <th>Tanggal</th>
+          <th>Benar</th>
+          <th>Nilai</th>
+        </tr>
+      </thead>
+      <tbody id="score-tbody">
+        <!-- Data siswa akan diisi oleh JavaScript -->
+      </tbody>
+    </table>
+
+    <button class="btn btn-danger" onclick="clearData()">Hapus Semua Data</button>
+    <button class="btn" onclick="resetToHome()">Kembali ke Halaman Siswa</button>
+  </div>
+
+</div>
+
+<script>
+  // Mengisi tanggal hari ini secara otomatis pada form
+  document.getElementById('tanggal').valueAsDate = new Date();
+
+  // Bank Soal Kuis (Bisa disesuaikan)
+  const questions = [
+    {
+      question: "Siapakah pencipta lagu Indonesia Raya?",
+      options: ["W.R. Soepratman", "Soekarno", "Moh. Hatta", "Ibu Soed"],
+      answer: 0
+    },
+    {
+      question: "Ibu kota negara Indonesia adalah...",
+      options: ["Bandung", "Surabaya", "Jakarta", "Medan"],
+      answer: 2
+    },
+    {
+      question: "Hasil dari 12 x 5 adalah...",
+      options: ["50", "55", "60", "65"],
+      answer: 2
+    }
+  ];
+
+  let currentQuestionIndex = 0;
+  let score = 0;
+  let studentData = {};
+
+  // Memulai Kuis
+  function startQuiz(event) {
+    event.preventDefault();
+    studentData = {
+      nama: document.getElementById('nama').value,
+      tanggal: document.getElementById('tanggal').value
+    };
+    
+    currentQuestionIndex = 0;
+    score = 0;
+    
+    showScreen('quiz-screen');
+    loadQuestion();
+  }
+
+  // Menampilkan Soal
+  function loadQuestion() {
+    const q = questions[currentQuestionIndex];
+    document.getElementById('question-text').innerText = `Soal ${currentQuestionIndex + 1}: ${q.question}`;
+    
+    const optionsContainer = document.getElementById('options-container');
+    optionsContainer.innerHTML = '';
+    
+    q.options.forEach((opt, idx) => {
+      const btn = document.createElement('button');
+      btn.className = 'option-btn';
+      btn.innerText = opt;
+      btn.onclick = () => selectAnswer(idx);
+      optionsContainer.appendChild(btn);
+    });
+  }
+
+  // Memilih Jawaban
+  function selectAnswer(selectedIndex) {
+    if (selectedIndex === questions[currentQuestionIndex].answer) {
+      score++;
+    }
+    
+    currentQuestionIndex++;
+    if (currentQuestionIndex < questions.length) {
+      loadQuestion();
+    } else {
+      finishQuiz();
+    }
+  }
+
+  // Mengakhiri Kuis & Menyimpan Hasil
+  function finishQuiz() {
+    const finalScore = Math.round((score / questions.length) * 100);
+    document.getElementById('user-score').innerText = finalScore;
+    
+    // Simpan data ke localStorage
+    const record = {
+      nama: studentData.nama,
+      tanggal: studentData.tanggal,
+      benar: `${score} / ${questions.length}`,
+      nilai: finalScore
+    };
+    
+    let existingRecords = JSON.parse(localStorage.getItem('quiz_results')) || [];
+    existingRecords.push(record);
+    localStorage.setItem('quiz_results', JSON.stringify(existingRecords));
+    
+    showScreen('result-screen');
+  }
+
+  // Otentikasi Akses Guru (PIN sederhana: 1234)
+  function openTeacherAuth() {
+    const pin = prompt("Masukkan PIN Guru:");
+    if (pin === "1234") {
+      loadTeacherDashboard();
+      showScreen('teacher-screen');
+    } else if (pin !== null) {
+      alert("PIN Salah!");
+    }
+  }
+
+  // Memuat Rekap Data ke Tabel Dashboard Guru
+  function loadTeacherDashboard() {
+    const tbody = document.getElementById('score-tbody');
+    tbody.innerHTML = '';
+    
+    const records = JSON.parse(localStorage.getItem('quiz_results')) || [];
+    
+    if (records.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="5">Belum ada data siswa yang mengerjakan.</td></tr>';
+      return;
+    }
+    
+    records.forEach((rec, idx) => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${idx + 1}</td>
+        <td>${rec.nama}</td>
+        <td>${rec.tanggal}</td>
+        <td>${rec.benar}</td>
+        <td><strong>${rec.nilai}</strong></td>
+      `;
+      tbody.appendChild(tr);
+    });
+  }
+
+  // Ekspor Rekap Nilai ke File CSV (Excel)
+  function exportToCSV() {
+    const records = JSON.parse(localStorage.getItem('quiz_results')) || [];
+    if (records.length === 0) {
+      alert("Tidak ada data untuk diunduh.");
+      return;
+    }
+    
+    let csv = 'No,Nama Siswa,Tanggal,Jawaban Benar,Nilai\n';
+    records.forEach((rec, idx) => {
+      csv += `"${idx + 1}","${rec.nama}","${rec.tanggal}","${rec.benar}","${rec.nilai}"\n`;
+    });
+    
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.setAttribute('download', `Rekap_Nilai_Kuis_${new Date().toISOString().slice(0,10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  }
+
+  // Hapus Data Rekap Nilai
+  function clearData() {
+    if (confirm("Apakah Anda yakin ingin menghapus seluruh data rekap nilai siswa?")) {
+      localStorage.removeItem('quiz_results');
+      loadTeacherDashboard();
+    }
+  }
+
+  // Navigasi Layar
+  function showScreen(screenId) {
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    document.getElementById(screenId).classList.add('active');
+  }
+
+  function resetToHome() {
+    document.getElementById('student-form').reset();
+    document.getElementById('tanggal').valueAsDate = new Date();
+    showScreen('student-screen');
+  }
+</script>
+
+</body>
+</html>
